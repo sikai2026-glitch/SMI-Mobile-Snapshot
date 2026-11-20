@@ -41,11 +41,11 @@ footer{color:var(--muted);font-size:11px;text-align:center;padding:15px 5px 5px}
 <div class="metric"><small>标记价格 / 指数价格</small><strong id="markIndex">—</strong></div>
 <div class="metric"><small>多头 / 空头持仓人数比例</small><strong id="longShort">—</strong></div>
 </div><div class="note" style="margin-top:10px">OI 同时提供基础资产数量与按标记价格估算的 USDT 名义价值。多空比是账户或持仓统计口径，不代表全市场真实资金净流向。</div></section>
-<section class="card"><h2>快照数据选择</h2><div class="controls" style="margin-bottom:12px"><label class="grow"><div class="sub" style="margin-bottom:5px">每个周期 K 线数量</div><select id="limit" class="full"><option value="20">20 根（精简）</option><option value="30" selected>30 根（推荐）</option><option value="50">50 根</option><option value="100">100 根</option></select></label></div>
+<section class="card"><h2>快照数据选择</h2><div class="controls" style="margin-bottom:12px"><label class="grow"><div class="sub" style="margin-bottom:5px">每个周期采集K线数量</div><select id="limit" class="full"><option value="8" selected>8 根（推荐，短消息）</option><option value="6">6 根（极简）</option><option value="12">12 根（更多上下文）</option></select></label></div>
 <div class="checks">
-<label class="check"><input type="checkbox" data-key="5m">5分钟 K线</label><label class="check"><input type="checkbox" data-key="15m" checked>15分钟 K线</label><label class="check"><input type="checkbox" data-key="1h" checked>1小时 K线</label><label class="check"><input type="checkbox" data-key="4h" checked>4小时 K线</label><label class="check"><input type="checkbox" data-key="1d" checked>日线 K线</label><label class="check"><input type="checkbox" id="includeDepth" checked>盘口前20档</label><label class="check"><input type="checkbox" id="includeIndicators" checked>MACD / RSI / EMA</label>
-</div><div class="note" style="margin-top:10px">全部 K 线、盘口、价格与成交量均来自 U 本位合约接口。K线包含 OHLCV、成交额、成交笔数及主动买入量。</div></section>
-<section class="card"><h2>导出给 ChatGPT</h2><div class="actions"><button class="primary" id="copy">复制完整合约快照</button><button class="secondary" id="preview">预览 JSON</button></div><div class="status" id="copyStatus"></div><pre id="previewBox" hidden></pre><div class="note">复制后直接粘贴到 ChatGPT。不会连接交易账户、不会下单、不会上传私钥或 API Key。</div></section>
+<label class="check"><input type="checkbox" data-key="5m">5分钟 K线</label><label class="check"><input type="checkbox" data-key="15m" checked>15分钟 K线</label><label class="check"><input type="checkbox" data-key="1h" checked>1小时 K线</label><label class="check"><input type="checkbox" data-key="4h" checked>4小时 K线</label><label class="check"><input type="checkbox" data-key="1d" checked>日线 K线</label><label class="check"><input type="checkbox" id="includeDepth">采集盘口深度（不导出）</label><label class="check"><input type="checkbox" id="includeIndicators" checked>MACD / RSI / EMA</label>
+</div><div class="note" style="margin-top:10px">导出时自动压缩为短数组：时间、OHLC、成交额、主动买入额。盘口深度不进入AI快照，避免占用消息长度。</div></section>
+<section class="card"><h2>导出给 ChatGPT</h2><div class="actions"><button class="primary" id="copy">复制AI精简快照</button><button class="secondary" id="preview">预览精简数据</button></div><div class="status" id="copyStatus"></div><pre id="previewBox" hidden></pre><div class="note">复制后直接粘贴到 ChatGPT。默认每周期8根K线；指标使用完整采集窗口计算。不会连接交易账户或下单。</div></section>
 <footer>SMI Futures Snapshot · Binance USDⓈ-M Futures · Public REST API</footer></main>
 <script>
 const $=id=>document.getElementById(id),BASE="https://fapi.binance.com";
@@ -94,7 +94,35 @@ async function refresh(){
  }catch(e){status("获取失败："+e.message+"。请确认网络可访问 fapi.binance.com。","error")}
  finally{$("refresh").disabled=false}
 }
-const json=()=>JSON.stringify(snapshot,null,2);
+function compactSnapshot(){
+ if(!snapshot)return null;
+ const round=(v,n=2)=>v===null||v===undefined?null:Number(Number(v).toFixed(n));
+ const bars={};
+ for(const [tf,arr] of Object.entries(snapshot.klines||{})){
+  bars[tf]=arr.map(x=>[
+   x.open_time.slice(5,16).replace('T',' '),
+   round(x.open, snapshot.contract.price_precision),round(x.high,snapshot.contract.price_precision),
+   round(x.low,snapshot.contract.price_precision),round(x.close,snapshot.contract.price_precision),
+   Math.round(x.quote_volume),Math.round(x.taker_buy_quote_volume)
+  ]);
+ }
+ const ind={};
+ for(const [tf,x] of Object.entries(snapshot.indicators||{}))ind[tf]=[round(x.ema12),round(x.ema26),round(x.rsi14,1),round(x.macd),round(x.macd_signal),round(x.macd_histogram)];
+ const m=snapshot.market_24h, f=snapshot.funding, oi=snapshot.open_interest, ob=snapshot.order_book, ls=snapshot.long_short, flow=snapshot.taker_flow;
+ return {
+  v:1,source:'Binance USDⓈ-M Futures',symbol:snapshot.contract.symbol,utc:snapshot.collected_at,
+  p:round(snapshot.mark_index.mark_price,snapshot.contract.price_precision),last:round(m.last_price,snapshot.contract.price_precision),
+  chg:round(m.price_change_percent,3),hi:round(m.high,snapshot.contract.price_precision),lo:round(m.low,snapshot.contract.price_precision),
+  qv:Math.round(m.volume_quote),oi:round(oi.quantity,2),oi_usdt:Math.round(oi.notional_usdt_estimated),
+  fund:round(f.last_funding_rate,7),next_fund:f.next_funding_time,
+  book:[round(ob.best_bid,snapshot.contract.price_precision),round(ob.best_ask,snapshot.contract.price_precision),round(ob.spread,snapshot.contract.price_precision)],
+  taker:[round(flow.buy_sell_ratio,4),Math.round(flow.buy_volume),Math.round(flow.sell_volume)],
+  ls:[round(ls.global_account_ratio,3),round(ls.top_trader_position_ratio,3),round(ls.top_trader_account_ratio,3)],
+  ind, kline_fields:['UTC月日时分','开','高','低','收','成交额USDT','主动买入额USDT'],k:bars,
+  note:'K线最后一根可能未收盘；OI单位为基础币，oi_usdt为按标记价估算；多空比是账户/持仓比例，不是净资金流。指标按采集到的全部K线计算。'
+ };
+}
+const json=()=>JSON.stringify(compactSnapshot());
 $("refresh").onclick=refresh;$("symbol").onkeydown=e=>{if(e.key==="Enter")refresh()};
 $("copy").onclick=async()=>{if(!snapshot)return;try{await navigator.clipboard.writeText(json());$("copyStatus").textContent="合约快照已复制，可以粘贴到 ChatGPT。";$("copyStatus").className="status ok"}catch(e){$("copyStatus").textContent="剪贴板权限不可用，请打开 JSON 预览后长按复制。";$("copyStatus").className="status error";$("previewBox").hidden=false;$("previewBox").textContent=json()}};
 $("preview").onclick=()=>{if(!snapshot){$("copyStatus").textContent="请先刷新合约行情。";return}$("previewBox").hidden=!$("previewBox").hidden;$("previewBox").textContent=json()};
