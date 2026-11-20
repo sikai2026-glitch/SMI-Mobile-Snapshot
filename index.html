@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#080d19"><meta name="description" content="Binance USDⓈ-M Futures market snapshot for ChatGPT">
-<link rel="manifest" href="manifest.webmanifest"><title>SMI Futures Snapshot v1.3</title>
+<link rel="manifest" href="manifest.webmanifest"><title>SMI Futures Snapshot v1.4</title>
 <style>
 :root{color-scheme:dark;--bg:#080d19;--panel:#111a2b;--panel2:#172238;--line:#26344d;--text:#edf3ff;--muted:#8fa1bd;--green:#29d391;--red:#ff657a;--blue:#77a9ff;--amber:#f4c56a}
 *{box-sizing:border-box}body{margin:0;background:linear-gradient(180deg,#0c1425 0,#080d19 35%);color:var(--text);font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;padding:env(safe-area-inset-top) 14px calc(24px + env(safe-area-inset-bottom))}
@@ -22,7 +22,7 @@ footer{color:var(--muted);font-size:11px;text-align:center;padding:15px 5px 5px}
 @media(min-width:600px){.metrics{grid-template-columns:repeat(4,minmax(0,1fr))}.checks{grid-template-columns:repeat(3,minmax(0,1fr))}}
 </style></head>
 <body><main class="wrap">
-<header class="top"><div><div class="brand">◈ SMI <span style="color:#77a9ff">FUTURES SNAPSHOT v1.3</span></div><div class="sub">Binance USDⓈ-M Perpetual Futures</div></div><span class="pill">FAPI PUBLIC DATA</span></header>
+<header class="top"><div><div class="brand">◈ SMI <span style="color:#77a9ff">FUTURES SNAPSHOT v1.4</span></div><div class="sub">Binance USDⓈ-M Perpetual Futures</div></div><span class="pill">FAPI PUBLIC DATA</span></header>
 <section class="card"><h2>合约交易对</h2><div class="row"><div class="grow"><input id="symbol" value="EVAAUSDT" autocomplete="off" spellcheck="false" aria-label="合约交易对"></div><button class="primary" id="refresh">刷新合约行情</button></div><div class="sub" style="margin-top:7px">仅查询 Binance U 本位合约，例如 BTCUSDT、ETHUSDT、EVAAUSDT；不会回退到现货数据。</div><div class="status" id="status">正在初始化</div></section>
 <section class="card"><div class="row" style="justify-content:space-between;align-items:flex-start"><div><div class="symbol" id="symbolLabel">EVAAUSDT</div><div class="sub">USDⓈ-M Perpetual · Mark Price</div></div><div style="text-align:right"><div class="change" id="change">—</div><div class="sub">24H 涨跌幅</div></div></div><div class="price" id="price">—</div><div class="sub" id="priceMeta">标记价格 — · 最新成交价 —</div></section>
 <section class="card"><h2>合约市场数据</h2><div class="metrics">
@@ -47,7 +47,7 @@ footer{color:var(--muted);font-size:11px;text-align:center;padding:15px 5px 5px}
 <label class="check"><input type="checkbox" data-key="5m">5分钟 K线</label><label class="check"><input type="checkbox" data-key="15m" checked>15分钟 K线</label><label class="check"><input type="checkbox" data-key="1h" checked>1小时 K线</label><label class="check"><input type="checkbox" data-key="4h" checked>4小时 K线</label><label class="check"><input type="checkbox" data-key="1d" checked>日线 K线</label><label class="check"><input type="checkbox" id="includeDepth">采集盘口深度（不导出）</label><label class="check"><input type="checkbox" id="includeIndicators" checked>MACD / RSI / EMA</label>
 </div><div class="note" style="margin-top:10px">导出时自动压缩为短数组：时间、OHLC、成交额、主动买入额。盘口深度不进入AI快照，避免占用消息长度。</div></section>
 <section class="card"><h2>导出给 ChatGPT</h2><div class="actions"><button class="primary" id="copy">复制AI精简快照</button><button class="secondary" id="preview">预览精简数据</button></div><div class="status" id="copyStatus"></div><pre id="previewBox" hidden></pre><div class="note">复制后直接粘贴到 ChatGPT。默认每周期8根K线；指标独立使用100根K线计算；导出K线数量不影响指标精度。OI变化由历史OI采样计算。不会连接交易账户或下单。</div></section>
-<footer>SMI Futures Snapshot v1.3 · Binance USDⓈ-M Futures · Public REST API</footer></main>
+<footer>SMI Futures Snapshot v1.4 · Binance USDⓈ-M Futures · Public REST API</footer></main>
 <script>
 const $=id=>document.getElementById(id),BASE="https://fapi.binance.com";
 let snapshot=null;
@@ -129,10 +129,18 @@ function compactSnapshot(){
   ]);
  }
  const ind={};
- for(const [tf,x] of Object.entries(snapshot.indicators||{}))ind[tf]=[round(x.ema12),round(x.ema26),round(x.rsi14,1),round(x.macd),round(x.macd_signal),round(x.macd_histogram),x.calculation_bars];
+ for(const [tf,x] of Object.entries(snapshot.indicators||{}))ind[tf]={
+  ema12:round(x.ema12),
+  ema26:round(x.ema26),
+  rsi14:round(x.rsi14,1),
+  macd:round(x.macd),
+  macd_signal:round(x.macd_signal),
+  macd_histogram:round(x.macd_histogram),
+  calculation_bars:x.calculation_bars
+ };
  const m=snapshot.market_24h, f=snapshot.funding, oi=snapshot.open_interest, ob=snapshot.order_book, ls=snapshot.long_short, flow=snapshot.taker_flow;
  return {
-  v:1,source:'Binance USDⓈ-M Futures',symbol:snapshot.contract.symbol,utc:snapshot.collected_at,
+  v:2,build:'1.4.0',source:'Binance USDⓈ-M Futures',symbol:snapshot.contract.symbol,utc:snapshot.collected_at,
   p:round(snapshot.mark_index.mark_price,snapshot.contract.price_precision),last:round(m.last_price,snapshot.contract.price_precision),
   chg:round(m.price_change_percent,3),hi:round(m.high,snapshot.contract.price_precision),lo:round(m.low,snapshot.contract.price_precision),
   qv:Math.round(m.volume_quote),oi:round(oi.quantity,2),oi_usdt:Math.round(oi.notional_usdt_estimated),oi_pct:Object.fromEntries(Object.entries(oi.historical_change||{}).map(([tf,x])=>[tf,round(x.pct,4)])),
@@ -141,7 +149,7 @@ function compactSnapshot(){
   taker:[round(flow.buy_sell_ratio,4),Math.round(flow.buy_volume),Math.round(flow.sell_volume)],
   ls:[round(ls.global_account_ratio,3),round(ls.top_trader_position_ratio,3),round(ls.top_trader_account_ratio,3)],
   ind, kline_fields:['UTC月日时分','开','高','低','收','成交额USDT','主动买入额USDT'],k:bars,
-  note:'K线最后一根可能未收盘；OI单位为基础币，oi_usdt为按标记价估算；多空比是账户/持仓比例，不是净资金流。指标由100根K线计算；oi_pct为历史OI相邻采样点变化率，可能因接口数据缺失为null。'
+  note:'v2结构；ind各字段为命名对象，不再使用位置数组。EMA12/26、RSI14、MACD及Signal/Histogram由最多100根K线计算；不足100根时以calculation_bars标明实际数量。K线最后一根可能未收盘；OI单位为基础币，oi_usdt为按标记价估算；多空比是账户/持仓比例，不是净资金流。oi_pct为历史OI相邻采样点变化率，可能因接口数据缺失为null。'
  };
 }
 const json=()=>JSON.stringify(compactSnapshot());
