@@ -1,52 +1,58 @@
-# SMI Market Snapshot v1.7
+# SMI Market Snapshot v1.8
 
-手机端 Binance 市场快照工具，按交易所实时元数据自动识别普通 USDⓈ-M 永续合约、TradFi 永续合约或现货交易对。适用于加密资产及任何确实在 Binance 对应市场上市、当前可交易的资产；不根据名称推断资产类别。
+手机端 Binance 市场快照工具，自动识别普通 USDⓈ-M 永续、TradFi 永续或现货交易对。仅使用公开市场数据，不需要 API Key，不连接账户，不下单。
 
-## 市场识别规则
+## v1.8 主动买卖数据升级
 
-1. 查询 Binance USDⓈ-M `/fapi/v1/exchangeInfo`。
-2. 若交易对存在且 `contractType=PERPETUAL` 或 `TRADIFI_PERPETUAL`、`status=TRADING`，均按 USDⓈ-M Futures 合约处理。
-3. `TRADIFI_PERPETUAL`（股票、ETF、商品、外汇等 TradFi 标的）使用 `/fapi/v1/continuousKlines?pair=...&contractType=TRADIFI_PERPETUAL` 获取K线。
-4. 两类可交易永续合约均未找到时，独立查询 Binance Spot `/api/v3/exchangeInfo?symbol=...`。
-5. 现货交易对必须存在、`status=TRADING` 且允许 SPOT 交易，才使用现货数据。
-6. 若 API 返回无效交易对，提示两个市场均未找到；若 API 网络请求失败，则明确标记为查询失败，不把网络错误误判为交易对不存在。
-7. 不会把现货行情伪装成合约行情，也不会把股票代码或相似代码自动替换成其他交易对。
+新增 5m、15m、1h 三个周期最近一根 K 线的主动买卖成交统计，页面展示：
+- 主动买入成交额（报价资产）
+- 主动卖出成交额（报价资产）
+- 主动买卖成交额比（买入额 / 卖出额）
+- 主动买入占比、主动卖出占比
 
-## Futures / TradFi Futures 数据
+快照命名结构 `taker_flow.periods[周期]` 同时提供：
+- `buy_volume_base` / `sell_volume_base`：基础资产数量
+- `buy_volume_quote` / `sell_volume_quote`：报价资产金额
+- `buy_sell_ratio_quote`：主动买入额 / 主动卖出额
+- `buy_share_quote` / `sell_share_quote`：主动买入额、主动卖出额占该周期总成交额的比例
+- `bar_open_time` / `bar_close_time` / `is_closed`：该统计对应K线的时间和是否收盘
+- `method`：数据来源口径
 
-- 24h ticker、标记/指数价格、资金费率、下一次结算时间（以接口实际可用字段为准）
-- 当前 OI、OI 历史采样变化（TradFi 某些统计接口可能不提供）
-- 盘口、主动买卖量比、全市场及大户多空比（不可用时记录为 null，不阻断快照）
-- 多周期 K 线和 EMA12/EMA26、Wilder RSI14、MACD/Signal/Histogram
+计算口径：Binance K线字段 `taker_buy_base_asset_volume` 和 `taker_buy_quote_asset_volume` 是主动买入量/额；主动卖出量/额分别用该K线总成交量/额减去主动买入量/额计算。此处是该周期最近一根K线的主动成交统计，不是整个24小时累计，也不是订单簿挂单量。最后一根K线未收盘时数据为实时累积值。
 
-## Spot 数据
+合约市场额外保留 Binance `/futures/data/takerlongshortRatio` 的 15m 独立聚合结果作为 `exchange_aggregate_15m`，用于交叉参考；其买卖量单位不在此处擅自换算为报价资产金额。
 
+## 市场识别
+
+1. 查询 USDⓈ-M `/fapi/v1/exchangeInfo`。
+2. `contractType=PERPETUAL` 或 `TRADIFI_PERPETUAL` 且 `status=TRADING` 时，按合约采集。
+3. TradFi 永续K线使用 `/fapi/v1/continuousKlines?contractType=TRADIFI_PERPETUAL`。
+4. 未匹配可交易合约时再查询 Spot `/api/v3/exchangeInfo`，仅接受可交易现货。
+5. 不把网络故障误判为交易对不存在，不把现货伪装成合约。
+
+## 数据范围
+
+### USDⓈ-M Futures / TradFi Futures
+- 24h ticker、标记/指数价格、资金费率、结算时间
+- OI及历史OI变化（接口不支持时为 null）
+- 盘口、主动买卖成交、全市场及大户多空比（不可用时为 null）
+- 多周期K线、EMA12/26、Wilder RSI14、MACD/Signal/Histogram
+
+### Spot
 - 24h ticker、最新成交价、盘口
-- 多周期 K 线和 EMA12/EMA26、Wilder RSI14、MACD/Signal/Histogram
-- 最近一根 15m K 线的主动买入成交额与推算主动卖出成交额比值
-- OI、资金费率、合约多空比、标记价格、指数价格等合约专属字段标记为不适用，使用 `null`，不伪造为 0。
+- 多周期K线、EMA12/26、Wilder RSI14、MACD/Signal/Histogram
+- 5m、15m、1h 主动买卖成交统计
+- OI、资金费率、合约多空比、标记价格、指数价格等合约专属字段不适用，使用 null。
+
+## 快照结构
+
+快照版本 `v: 6`，构建标识 `build: "1.8.0"`。`ind` 使用命名对象；`taker_flow` 使用按周期命名对象，不使用位置数组。
 
 ## API
 
 - USDⓈ-M Futures: `https://fapi.binance.com`
 - Spot: `https://api.binance.com`
-- 仅使用公开行情接口，不需要 API Key，不连接账户，不下单。
-
-## 指标与 K 线
-
-指标最多使用最近 100 根 K 线计算；导出 K 线根数可单独选择。指标以命名对象输出：`ema12`、`ema26`、`rsi14`、`macd`、`macd_signal`、`macd_histogram`、`calculation_bars`。最后一根 K 线可能尚未收盘。
-
-## v1.7 改进
-
-- 修复 TradFi 永续识别缺陷：此前只接受 `contractType=PERPETUAL`，会把 `TRADIFI_PERPETUAL`（例如 NVDAUSDT）错误地当成不存在。
-- 识别 `TRADIFI_PERPETUAL` 并通过 Binance 官方 `continuousKlines` 接口获取对应周期K线。
-- 快照显式输出 `market_type=USDⓈ-M_TRADFI_PERPETUAL` 和 `contract_type=TRADIFI_PERPETUAL`。
-- 继续保留普通加密货币永续与现货回退。
-- 将“交易对不存在”与“API 网络不可访问”分开报告，避免把网络故障误判成未上市。
-- 现货交易对校验增加 SPOT 权限判断（兼容 Binance 不同元数据字段）。
-- 不再将所有现货资产直接标记为股票代币候选；资产类别以外部研究为准。
-- 页面版本及快照版本更新为 `v: 5`、`build: "1.7.0"`。
 
 ## 部署
 
-将压缩包中的 5 个文件直接覆盖 GitHub Pages 发布目录中的同名文件。等待部署完成后，在手机浏览器清理站点缓存并重新打开。成功部署后，复制的 JSON 应包含 `build: "1.7.0"`。
+将压缩包内 5 个文件直接覆盖 GitHub Pages 发布目录中的同名文件，等待部署完成后清理手机浏览器该站点缓存并重新打开。成功后 JSON 应包含 `"build":"1.8.0"`。

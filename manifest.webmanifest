@@ -1,17 +1,1 @@
-{
-  "name": "SMI Market Snapshot v1.7",
-  "short_name": "SMI Market 1.7",
-  "start_url": "./",
-  "display": "standalone",
-  "background_color": "#080d19",
-  "theme_color": "#0b1020",
-  "description": "Binance USDⓈ-M Futures and Spot AI market snapshot with named indicator fields and 100-bar calculations",
-  "icons": [
-    {
-      "src": "icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
-    }
-  ]
-}
+{"name":"SMI Market Snapshot v1.8","short_name":"SMI Snapshot","start_url":"./","display":"standalone","background_color":"#080d19","theme_color":"#080d19","icons":[{"src":"./icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]}
