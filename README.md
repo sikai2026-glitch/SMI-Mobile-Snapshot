@@ -1,16 +1,25 @@
-# SMI Futures Snapshot v1.2
+# SMI Futures Snapshot v1.3
 
-手机端 Binance USDⓈ-M 永续合约快照。所有行情数据来自 Binance USDⓈ-M Futures 公共 API，不回退现货。
+手机端 Binance USDⓈ-M 永续合约行情快照工具。只使用 U 本位合约公共 API，不回退现货。
 
-## v1.2 精简导出
-- 默认每周期采集 8 根K线，可选 6 / 12 根。
-- 复制时输出单行紧凑 JSON，不再输出逐根K线的长字段对象。
-- K线数组字段顺序：UTC月日时分、开、高、低、收、成交额USDT、主动买入额USDT。
-- 不导出20档盘口深度；盘口仅保留最优买卖价和价差。
-- 保留标记价格、24h涨跌幅/高低/成交额、OI、资金费率、主动买卖比、多空比及 EMA/RSI/MACD。
-- 技术指标使用采集到的完整K线窗口计算，导出的K线根数可以更少。
+## v1.3 更新
+- K线导出根数与指标计算窗口分离：每个勾选周期请求最近100根K线，指标用完整100根计算，快照只导出用户选择的6/8/12根。
+- RSI 改为 Wilder 平滑算法；EMA12/26、MACD/Signal/Histogram使用100根K线计算，降低短导出窗口导致RSI为null或MACD受初始值影响过大的问题。
+- 新增历史OI变化率：通过 `/futures/data/openInterestHist` 分别读取5m、15m、1h最近两个采样点，计算相邻采样点间OI数量变化百分比；同时保留名义价值变化率供内部检查。
+- 页面显示 OI 5m/15m/1h变化率；紧凑JSON新增 `oi_pct`。
+- 指标数组末尾增加实际计算K线根数，便于核验。
 
-## 部署
-将 index.html、manifest.webmanifest、sw.js、icon.svg、README.md 上传到 GitHub 仓库根目录，覆盖旧版文件。GitHub Pages 继续使用 main / root。
+## OI变化口径
+`oi_pct` 的5m/15m/1h分别是 Binance 历史OI接口最近两个对应周期采样点之间的变化率，不是严格滚动过去5/15/60分钟的连续实时变化。接口可能对部分合约/周期无数据；此时返回 null，不能当作0。
 
-无需 API Key，不连接账户，不下单。
+## API来源
+- `/fapi/v1/exchangeInfo`：确认可交易U本位永续合约
+- `/fapi/v1/ticker/24hr`、`/fapi/v1/ticker/bookTicker`、`/fapi/v1/premiumIndex`
+- `/fapi/v1/openInterest`、`/futures/data/openInterestHist`
+- `/fapi/v1/klines`
+- `/futures/data/takerlongshortRatio`
+- `/futures/data/globalLongShortAccountRatio`
+- `/futures/data/topLongShortPositionRatio`
+- `/futures/data/topLongShortAccountRatio`
+
+无需API Key，不连接交易账户，不下单。最后一根K线可能未收盘；不同接口采集时刻可能存在秒级差异。
