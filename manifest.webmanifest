@@ -1,11 +1,11 @@
 {
-  "name": "SMI Futures Snapshot v1.4",
-  "short_name": "SMI Futures 1.4",
+  "name": "SMI Market Snapshot v1.6",
+  "short_name": "SMI Market 1.6",
   "start_url": "./",
   "display": "standalone",
   "background_color": "#080d19",
   "theme_color": "#0b1020",
-  "description": "Binance USDⓈ-M Futures AI snapshot with named indicator fields and 100-bar calculations",
+  "description": "Binance USDⓈ-M Futures and Spot AI market snapshot with named indicator fields and 100-bar calculations",
   "icons": [
     {
       "src": "icon.svg",

@@ -1,56 +1,48 @@
-# SMI Futures Snapshot v1.4
+# SMI Market Snapshot v1.6
 
-手机端 Binance USDⓈ-M 永续合约行情快照工具。只使用 U 本位合约公共 API，不回退现货。无需 API Key，不连接交易账户，不下单。
+手机端 Binance 市场快照工具，按交易所实时元数据自动识别 USDⓈ-M 永续合约或现货交易对。适用于加密资产及任何确实在 Binance 对应市场上市、当前可交易的资产；不根据名称推断资产类别。
 
-## v1.4 更新
-- **指标字段显式化**：紧凑 JSON 的 `ind` 从位置数组改为带字段名称的对象，消除 EMA、RSI、MACD 等指标的字段顺序歧义。
-- **快照结构版本升级**：`v` 改为 `2`，新增 `build: "1.4.0"`，可直接核验当前部署版本。
-- 保留 v1.3 的 100 根 K 线指标计算窗口、Wilder RSI、OI 历史变化率 `oi_pct` 和可选 K 线导出根数。
-- 指标计算根数由 `calculation_bars` 标出；API 返回不足 100 根时，按实际数量计算并如实标注。
-- Service Worker 缓存键升级为 `smi-mobile-snapshot-v1.4`，触发客户端缓存更新。
+## 市场识别规则
 
-## `ind` 字段定义
-每个周期（例如 `15m`）均为以下对象：
+1. 查询 Binance USDⓈ-M `/fapi/v1/exchangeInfo`。
+2. 若交易对存在且 `contractType=PERPETUAL`、`status=TRADING`，使用 USDⓈ-M Futures 数据。
+3. 未找到可交易永续合约时，独立查询 Binance Spot `/api/v3/exchangeInfo?symbol=...`。
+4. 现货交易对必须存在、`status=TRADING` 且允许 SPOT 交易，才使用现货数据。
+5. 若 API 返回无效交易对，提示两个市场均未找到；若 API 网络请求失败，则明确标记为查询失败，不把网络错误误判为交易对不存在。
+6. 不会把现货行情伪装成合约行情，也不会把股票代码或相似代码自动替换成其他交易对。
 
-| 字段 | 含义 |
-|---|---|
-| `ema12` | 12 周期指数移动平均线 |
-| `ema26` | 26 周期指数移动平均线 |
-| `rsi14` | 14 周期 RSI，使用 Wilder 平滑 |
-| `macd` | EMA12 - EMA26 |
-| `macd_signal` | MACD 线的 9 周期 EMA |
-| `macd_histogram` | MACD - MACD Signal |
-| `calculation_bars` | 实际用于计算的 K 线数量 |
+## Futures 数据
 
-示例：
+- 24h ticker、标记/指数价格、资金费率、下一次结算时间
+- 当前 OI、OI 历史采样变化
+- 盘口、主动买卖量比、全市场及大户多空比
+- 多周期 K 线和 EMA12/EMA26、Wilder RSI14、MACD/Signal/Histogram
 
-```json
-"ind": {
-  "15m": {
-    "ema12": 62147.44,
-    "ema26": 62231.78,
-    "rsi14": 51.5,
-    "macd": -84.33,
-    "macd_signal": -169.83,
-    "macd_histogram": 85.5,
-    "calculation_bars": 100
-  }
-}
-```
+## Spot 数据
 
-指标解读边界：单次快照只能说明当前数值与相对位置，不能单独证明刚刚发生金叉/死叉；RSI 70/30 是参考区间而非独立交易信号。最后一根 K 线可能尚未收盘，指标可能随行情变化。
+- 24h ticker、最新成交价、盘口
+- 多周期 K 线和 EMA12/EMA26、Wilder RSI14、MACD/Signal/Histogram
+- 最近一根 15m K 线的主动买入成交额与推算主动卖出成交额比值
+- OI、资金费率、合约多空比、标记价格、指数价格等合约专属字段标记为不适用，使用 `null`，不伪造为 0。
 
-## OI变化口径
-`oi_pct` 的 5m/15m/1h 分别是 Binance 历史 OI 接口最近两个对应周期采样点之间的变化率，不是严格滚动过去 5/15/60 分钟的连续实时变化。接口可能对部分合约/周期无数据；此时返回 `null`，不能当作 0。
+## API
 
-## 主要 API 来源
-- `/fapi/v1/exchangeInfo`：确认可交易 U 本位永续合约
-- `/fapi/v1/ticker/24hr`、`/fapi/v1/ticker/bookTicker`、`/fapi/v1/premiumIndex`
-- `/fapi/v1/openInterest`、`/futures/data/openInterestHist`
-- `/fapi/v1/klines`
-- `/futures/data/takerlongshortRatio`
-- `/futures/data/globalLongShortAccountRatio`
-- `/futures/data/topLongShortPositionRatio`
-- `/futures/data/topLongShortAccountRatio`
+- USDⓈ-M Futures: `https://fapi.binance.com`
+- Spot: `https://api.binance.com`
+- 仅使用公开行情接口，不需要 API Key，不连接账户，不下单。
 
-不同 REST 请求的采集时刻可能存在秒级差异；多空比是账户或持仓统计口径，不代表全市场真实资金净流向。
+## 指标与 K 线
+
+指标最多使用最近 100 根 K 线计算；导出 K 线根数可单独选择。指标以命名对象输出：`ema12`、`ema26`、`rsi14`、`macd`、`macd_signal`、`macd_histogram`、`calculation_bars`。最后一根 K 线可能尚未收盘。
+
+## v1.6 改进
+
+- 修正现货回退流程的错误提示。
+- 将“交易对不存在”与“API 网络不可访问”分开报告，避免把网络故障误判成未上市。
+- 现货交易对校验增加 SPOT 权限判断（兼容 Binance 不同元数据字段）。
+- 不再将所有现货资产直接标记为股票代币候选；资产类别以外部研究为准。
+- 页面版本及快照版本更新为 `v: 4`、`build: "1.6.0"`。
+
+## 部署
+
+将压缩包中的 5 个文件直接覆盖 GitHub Pages 发布目录中的同名文件。等待部署完成后，在手机浏览器清理站点缓存并重新打开。成功部署后，复制的 JSON 应包含 `build: "1.6.0"`。
