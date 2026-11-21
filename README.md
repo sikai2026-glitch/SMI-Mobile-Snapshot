@@ -1,58 +1,29 @@
-# SMI Market Snapshot v1.8
+# SMI Market Intelligence Snapshot V2.0
 
-手机端 Binance 市场快照工具，自动识别普通 USDⓈ-M 永续、TradFi 永续或现货交易对。仅使用公开市场数据，不需要 API Key，不连接账户，不下单。
+手机端 Binance 多维市场快照。支持 USDⓈ-M 普通永续、TradFi 永续和 Spot；仅使用公开市场数据，不需 API Key，不连接账户，不下单。
 
-## v1.8 主动买卖数据升级
+## V2.0 Core Snapshot
+- 默认多周期：15m、1h、4h、1d；可选5m、1w。
+- 指标独立使用最多500根已收盘K线计算；导出K线默认每周期8根，二者互不影响。
+- SMA20/50/100/200；EMA12/20/26/50/100/200；价格偏离、均线排列、SMA/EMA/综合压缩度及压缩分位数。
+- ATR14/20、ATR%、ATR历史分位数、ADX14、+DI/-DI。
+- Bollinger(20,2)、Bandwidth、Bandwidth分位数、%B。
+- RSI6/14、Stoch RSI14、MACD(12,26,9)、ROC9/20、CCI20。
+- OI历史变化周期扩展到5m/15m/1h/4h/1d。
+- 主动买卖沿用K线taker-buy字段；滚动CVD输出20/50/100根Delta、价格变化和候选背离。
+- Trend Compression Scanner输出压缩/突破候选/趋势方向状态及分项评分，不生成未经回测的总分或胜率。
 
-新增 5m、15m、1h 三个周期最近一根 K 线的主动买卖成交统计，页面展示：
-- 主动买入成交额（报价资产）
-- 主动卖出成交额（报价资产）
-- 主动买卖成交额比（买入额 / 卖出额）
-- 主动买入占比、主动卖出占比
+## 关键定义与限制
+- 所有技术指标只用已收盘K线；导出的K线可含未收盘最新K线。
+- EMA200以400根已收盘K线作为预热完成门槛；每周期输出实际可用根数、预热状态及最近收盘时间。数据不足会明确标记。
+- CVD为最近最多100根已收盘K线的滚动主动成交Delta代理，不是跨快照永久累计CVD，也不能识别具体账户身份。
+- OI变化是相邻历史采样点变化；由于接口时间粒度不同，不与K线价格变化伪装成严格同步。
+- 缺失值使用null；接口不支持、请求失败和样本不足不得用0代替。
+- OI参与扫描评分暂为null，避免在数据时间未对齐时生成虚假评分。压缩不代表方向预测，突破候选不代表确认信号。
+- TradFi永续K线使用continuousKlines(contractType=TRADIFI_PERPETUAL)，普通永续使用fapi klines，现货使用Spot klines。
 
-快照命名结构 `taker_flow.periods[周期]` 同时提供：
-- `buy_volume_base` / `sell_volume_base`：基础资产数量
-- `buy_volume_quote` / `sell_volume_quote`：报价资产金额
-- `buy_sell_ratio_quote`：主动买入额 / 主动卖出额
-- `buy_share_quote` / `sell_share_quote`：主动买入额、主动卖出额占该周期总成交额的比例
-- `bar_open_time` / `bar_close_time` / `is_closed`：该统计对应K线的时间和是否收盘
-- `method`：数据来源口径
-
-计算口径：Binance K线字段 `taker_buy_base_asset_volume` 和 `taker_buy_quote_asset_volume` 是主动买入量/额；主动卖出量/额分别用该K线总成交量/额减去主动买入量/额计算。此处是该周期最近一根K线的主动成交统计，不是整个24小时累计，也不是订单簿挂单量。最后一根K线未收盘时数据为实时累积值。
-
-合约市场额外保留 Binance `/futures/data/takerlongshortRatio` 的 15m 独立聚合结果作为 `exchange_aggregate_15m`，用于交叉参考；其买卖量单位不在此处擅自换算为报价资产金额。
-
-## 市场识别
-
-1. 查询 USDⓈ-M `/fapi/v1/exchangeInfo`。
-2. `contractType=PERPETUAL` 或 `TRADIFI_PERPETUAL` 且 `status=TRADING` 时，按合约采集。
-3. TradFi 永续K线使用 `/fapi/v1/continuousKlines?contractType=TRADIFI_PERPETUAL`。
-4. 未匹配可交易合约时再查询 Spot `/api/v3/exchangeInfo`，仅接受可交易现货。
-5. 不把网络故障误判为交易对不存在，不把现货伪装成合约。
-
-## 数据范围
-
-### USDⓈ-M Futures / TradFi Futures
-- 24h ticker、标记/指数价格、资金费率、结算时间
-- OI及历史OI变化（接口不支持时为 null）
-- 盘口、主动买卖成交、全市场及大户多空比（不可用时为 null）
-- 多周期K线、EMA12/26、Wilder RSI14、MACD/Signal/Histogram
-
-### Spot
-- 24h ticker、最新成交价、盘口
-- 多周期K线、EMA12/26、Wilder RSI14、MACD/Signal/Histogram
-- 5m、15m、1h 主动买卖成交统计
-- OI、资金费率、合约多空比、标记价格、指数价格等合约专属字段不适用，使用 null。
-
-## 快照结构
-
-快照版本 `v: 6`，构建标识 `build: "1.8.0"`。`ind` 使用命名对象；`taker_flow` 使用按周期命名对象，不使用位置数组。
-
-## API
-
-- USDⓈ-M Futures: `https://fapi.binance.com`
-- Spot: `https://api.binance.com`
+## 暂未纳入
+多档订单簿深度、VWAP/Anchored VWAP、Volume Profile、清算历史、完整BOS/CHoCH、跨交易所聚合、链上聪明钱，留待V2.1及以后。
 
 ## 部署
-
-将压缩包内 5 个文件直接覆盖 GitHub Pages 发布目录中的同名文件，等待部署完成后清理手机浏览器该站点缓存并重新打开。成功后 JSON 应包含 `"build":"1.8.0"`。
+将压缩包内5个文件直接覆盖GitHub Pages发布目录同名文件，等待部署完成后清理手机浏览器站点缓存并重新打开。成功标识：`"v":7`、`"build":"2.0.0"`。
